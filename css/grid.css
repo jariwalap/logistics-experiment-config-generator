@@ -1,0 +1,332 @@
+/* Enhanced table styling for grid-like behavior */
+.editable-table {
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  overflow: hidden;
+}
+
+.editable-table table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.editable-table th {
+  background-color: #f1f5f9;
+  font-weight: 600;
+  text-align: left;
+  padding: 0.75rem;
+  position: sticky;
+  top: 0;
+  z-index: 5;
+  border-bottom: 2px solid var(--border-color);
+}
+
+.editable-table tbody tr {
+  border-bottom: 1px solid var(--border-color);
+}
+
+.editable-table tbody tr:last-child {
+  border-bottom: none;
+}
+
+.editable-table tbody tr:hover {
+  background-color: rgba(241, 245, 249, 0.5);
+}
+
+.editable-table td {
+  padding: 0.5rem 0.75rem;
+  position: relative;
+}
+
+/* Cell editing */
+.editable-cell {
+  position: relative;
+  height: 100%;
+  min-width: 80px;
+}
+
+.editable-cell.editing {
+  padding: 0;
+}
+
+.editable-cell:not(.editing):hover {
+  background-color: #e2e8f0;
+  cursor: pointer;
+}
+
+.editable-cell input,
+.editable-cell select {
+  width: 100%;
+  padding: 0.5rem;
+  border: 1px solid var(--border-color);
+  border-radius: 0;
+  font-size: 0.875rem;
+  height: 100%;
+}
+
+.editable-cell.editing input:focus,
+.editable-cell.editing select:focus {
+  outline: 2px solid var(--primary-color);
+  border-color: var(--primary-color);
+}
+
+/* Cell types */
+.cell-number input {
+  text-align: right;
+}
+
+.cell-text input {
+  text-align: left;
+}
+
+.cell-select select {
+  width: 100%;
+}
+
+.cell-boolean {
+  text-align: center;
+}
+
+/* Row actions */
+.row-actions {
+  opacity: 0.2;
+  transition: opacity 0.2s;
+}
+
+tr:hover .row-actions {
+  opacity: 1;
+}
+
+.row-actions button {
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: var(--secondary-color);
+  padding: 0.25rem;
+}
+
+.row-actions button:hover {
+  color: var(--primary-color);
+}
+
+/* Row selection */
+.row-selector {
+  width: 1.5rem;
+}
+
+.row-selector input[type="checkbox"] {
+  margin: 0;
+}
+
+.selected-row {
+  background-color: rgba(37, 99, 235, 0.1) !important;
+}
+
+/* Column resizing */
+.resize-handle {
+  position: absolute;
+  top: 0;
+  right: 0;
+  width: 4px;
+  height: 100%;
+  cursor: col-resize;
+  background-color: transparent;
+}
+
+th:hover .resize-handle {
+  background-color: var(--border-color);
+}
+
+/* Column header with sort */
+.sortable-header {
+  cursor: pointer;
+  user-select: none;
+  display: flex;
+  align-items: center;
+}
+
+.sort-icon {
+  margin-left: 0.25rem;
+  font-size: 0.75rem;
+}
+
+/* Helper classes for grid */
+.text-right {
+  text-align: right;
+}
+
+.text-center {
+  text-align: center;
+}
+
+.narrow-column {
+  width: 80px;
+}
+
+.medium-column {
+  width: 120px;
+}
+
+.wide-column {
+  width: 180px;
+}
+
+/* Add row button at bottom of table */
+.add-row-cell {
+  text-align: center;
+  padding: 0.75rem;
+  background-color: #f8fafc;
+  cursor: pointer;
+  transition: background-color 0.2s;
+}
+
+.add-row-cell:hover {
+  background-color: var(--medium-gray);
+}
+
+.add-row-cell span {
+  font-size: 0.875rem;
+  color: var(--primary-color);
+  font-weight: 500;
+}
+
+/* Batch editing tooltip */
+.batch-edit-tooltip {
+  position: absolute;
+  background-color: white;
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  padding: 0.5rem;
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+  z-index: 50;
+}
+
+.batch-edit-tooltip .tooltip-arrow {
+  position: absolute;
+  width: 10px;
+  height: 10px;
+  background-color: white;
+  transform: rotate(45deg);
+  top: -5px;
+  left: 50%;
+  margin-left: -5px;
+  border-left: 1px solid var(--border-color);
+  border-top: 1px solid var(--border-color);
+}
+
+/* Empty grid state */
+.empty-grid {
+  padding: 2rem;
+  text-align: center;
+  color: var(--secondary-color);
+  background-color: var(--light-gray);
+  border-radius: 6px;
+  margin: 1rem 0;
+}
+
+.empty-grid-message {
+  margin-bottom: 1rem;
+}
+
+/* Bulk actions bar */
+.bulk-actions-bar {
+  display: flex;
+  align-items: center;
+  padding: 0.5rem;
+  background-color: var(--primary-color);
+  color: white;
+  border-radius: 6px;
+  margin-bottom: 0.5rem;
+  animation: slideDown 0.3s ease-out;
+}
+
+.bulk-actions-bar .action-count {
+  margin-right: auto;
+  font-weight: 500;
+}
+
+.bulk-actions-bar .action-buttons {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.bulk-actions-bar button {
+  background-color: rgba(255, 255, 255, 0.2);
+  border: none;
+  color: white;
+  padding: 0.25rem 0.5rem;
+  border-radius: 4px;
+  font-size: 0.75rem;
+  cursor: pointer;
+  transition: background-color 0.2s;
+}
+
+.bulk-actions-bar button:hover {
+  background-color: rgba(255, 255, 255, 0.3);
+}
+
+/* Animations */
+@keyframes slideDown {
+  from {
+    transform: translateY(-10px);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+/* Range slider for numeric inputs */
+.range-slider {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.range-slider input[type="range"] {
+  flex-grow: 1;
+}
+
+.range-slider .value-display {
+  min-width: 40px;
+  text-align: right;
+  font-size: 0.875rem;
+}
+
+/* Quick edit dropdown */
+.quick-edit-dropdown {
+  position: absolute;
+  background-color: white;
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+  z-index: 100;
+  min-width: 160px;
+}
+
+.quick-edit-dropdown .menu-item {
+  padding: 0.5rem 1rem;
+  cursor: pointer;
+  font-size: 0.875rem;
+}
+
+.quick-edit-dropdown .menu-item:hover {
+  background-color: var(--light-gray);
+}
+
+.quick-edit-dropdown .menu-divider {
+  height: 1px;
+  background-color: var(--border-color);
+  margin: 0.25rem 0;
+}
+
+.rules-table table th:first-child,
+.rules-table table td:first-child {
+  min-width: 100px; /* Ensure Type column is wide enough */
+}
+
+.rules-table select {
+  width: 100%;
+  min-width: 80px;
+}
