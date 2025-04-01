@@ -94,26 +94,132 @@ export class GridManager {
 
     // Add the table to the container
     tableContainer.appendChild(table);
+
+    // Apply styling for ranges tables
+    if (sectionType === 'ranges') {
+      this.applyColorCodingToRangesTable(tableContainer);
+    }
+  }
+
+  applyColorCodingToRangesTable(tableContainer) {
+    // Get all tables with rules
+    const table = tableContainer.querySelector('table');
+    if (!table) return;
+
+      // Add the class to the table
+      table.classList.add('color-coded-table');
+
+      // Get all rows except header
+      const rows = Array.from(table.querySelectorAll('tbody tr'));
+
+      // Track the current PDT range to detect changes
+      let currentPdtLower = null;
+      let currentPdtUpper = null;
+
+      rows.forEach((row, index) => {
+        const cells = row.querySelectorAll('td');
+        if (cells.length < 6) return; // Skip rows without enough cells
+
+        // Get PDT values
+        const pdtLower = cells[0].textContent.trim() || null;
+        const pdtUpper = cells[1].textContent.trim() || null;
+
+        // Get Mean Delay values
+        const mdLower = cells[2].textContent.trim() || null;
+        const mdUpper = cells[3].textContent.trim() || null;
+
+        // Get bound values
+        const lowerBound = cells[4].textContent.trim();
+        const upperBound = cells[5].textContent.trim();
+
+        // Add class for PDT range
+        if (pdtLower === null && pdtUpper === '30') {
+          row.classList.add('pdt-range-0-30');
+        } else if (pdtLower === '30' && pdtUpper === '35') {
+          row.classList.add('pdt-range-30-35');
+        } else if (pdtLower === '35' && pdtUpper === '40') {
+          row.classList.add('pdt-range-35-40');
+        } else if (pdtLower === '40' && pdtUpper === '45') {
+          row.classList.add('pdt-range-40-45');
+        } else if (pdtLower === '45') {
+          row.classList.add('pdt-range-45-plus');
+        } else if (pdtLower === '50' && pdtUpper === '55') {
+          row.classList.add('pdt-range-50-55');
+        } else if (pdtLower === '55' && pdtUpper === '60') {
+          row.classList.add('pdt-range-55-60');
+        } else if (pdtLower === '60') {
+          row.classList.add('pdt-range-60-plus');
+        }
+
+        // Add class for Mean Delay range
+        if (!mdLower && !mdUpper) {
+          row.classList.add('mean-delay-none');
+        } else if (!mdLower && mdUpper === '8') {
+          row.classList.add('mean-delay-less-than-8');
+        } else if (mdLower === '8' && mdUpper === '12') {
+          row.classList.add('mean-delay-8-12');
+        } else if (mdLower === '12') {
+          row.classList.add('mean-delay-greater-than-12');
+        }
+
+        // Highlight negative bounds
+        if (lowerBound.startsWith('-')) {
+          cells[4].classList.add('negative-bound');
+        }
+
+        // Add separator after PDT range changes
+        if (currentPdtUpper !== null && currentPdtUpper !== pdtUpper) {
+          rows[index - 1].classList.add('pdt-range-separator');
+        }
+
+        // Update current PDT range
+        currentPdtLower = pdtLower;
+        currentPdtUpper = pdtUpper;
+      });
   }
 
   /**
    * Get the column definitions for a section type
    */
-  getColumnsForSectionType(sectionType) {
+  getColumnsForSectionType(sectionType, group = null) {
     switch (sectionType) {
       case 'display-format':
-        return [
-          {
-            field: 'format',
-            label: 'Format',
-            type: 'select',
-            options: [
-              { value: 'DISPLAY_FORMAT_MINUTE_VALUE', label: 'Minute Value' },
-              { value: 'DISPLAY_FORMAT_MINUTE_RANGE', label: 'Minute Range' },
-              { value: 'DISPLAY_FORMAT_ETA_RANGE', label: 'ETA Range' }
-            ]
-          }
+        const allFormatOptions = [
+          { value: 'DISPLAY_FORMAT_MINUTE_VALUE', label: 'Minute Value' },
+          { value: 'DISPLAY_FORMAT_MINUTE_RANGE', label: 'Minute Range' }
         ];
+
+        // If a group is provided, filter out used formats
+        let formatOptions = allFormatOptions;
+        if (group && group.rules.length > 0) {
+          // Get all currently used formats in this group
+          const usedFormats = group.rules.map(rule => rule.format);
+
+          // Create custom options for each rule to include only:
+          // 1. The format that rule is currently using
+          // 2. Formats not used by any other rule
+          return group.rules.map((rule, ruleIndex) => {
+            // For this specific rule, allow its current format plus any unused formats
+            const ruleOptions = allFormatOptions.filter(option =>
+              option.value === rule.format || !usedFormats.includes(option.value)
+            );
+
+            return {
+              field: 'format',
+              label: 'Format',
+              type: 'select',
+              options: ruleOptions
+            };
+          });
+        }
+
+        // If no group or no rules, return all format options
+        return [{
+          field: 'format',
+          label: 'Format',
+          type: 'select',
+          options: formatOptions
+        }];
       case 'ranges':
         return [
           {
@@ -418,23 +524,6 @@ export class GridManager {
     // Add actions cell
     this.addActionsCell(row, groupId, ruleIndex);
     return row;
-  }
-
-  addCappingCell(row, rule, fieldName, ruleIndex, groupId) {
-    const cell = document.createElement('td');
-    const input = document.createElement('input');
-    input.type = 'number';
-    input.className = 'cell-input';
-    input.value = rule[fieldName] || '';
-
-    input.addEventListener('change', (e) => {
-      if (this.onChangeHandler) {
-        this.onChangeHandler(groupId, ruleIndex, fieldName, parseInt(e.target.value));
-      }
-    });
-
-    cell.appendChild(input);
-    row.appendChild(cell);
   }
 
   addActionsCell(row, groupId, ruleIndex) {

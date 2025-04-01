@@ -330,3 +330,53 @@ th:hover .resize-handle {
   width: 100%;
   min-width: 80px;
 }
+
+
+.rules-table tr:hover {
+  background-color: rgba(37, 99, 235, 0.1) !important;
+}
+
+/* Color groups for PDT ranges */
+.pdt-range-0-30 {
+  background-color: rgba(240, 253, 244, 0.8); /* Light green */
+}
+
+.pdt-range-30-35 {
+  background-color: rgba(236, 254, 255, 0.8); /* Light cyan */
+}
+
+.pdt-range-35-40 {
+  background-color: rgba(239, 246, 255, 0.8); /* Light blue */
+}
+
+.pdt-range-40-45 {
+  background-color: rgba(249, 250, 251, 0.8); /* Light gray-blue */
+}
+
+.pdt-range-45-plus {
+  background-color: rgba(254, 249, 231, 0.8); /* Light yellow */
+}
+
+.pdt-range-50-55 {
+  background-color: rgba(253, 242, 248, 0.8); /* Light pink */
+}
+
+.pdt-range-55-60 {
+  background-color: rgba(243, 244, 246, 0.8); /* Light gray */
+}
+
+.pdt-range-60-plus {
+  background-color: rgba(254, 243, 199, 0.8); /* Light amber */
+}
+
+
+/* Negative lower bound highlighting */
+tr td.negative-bound {
+  color: #EF4444; /* Red text */
+  font-weight: 500;
+}
+
+/* Add a subtle border between PDT ranges */
+.pdt-range-separator {
+  border-bottom: 2px dashed rgba(203, 213, 225, 0.8) !important;
+}

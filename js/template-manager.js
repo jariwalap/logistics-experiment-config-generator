@@ -157,22 +157,33 @@ export class TemplateManager {
         name: 'Common Display Format',
         description: 'Standard display format configuration',
         groups: [
+          // First group with Minute Value format for Pickup
           {
             type: 'display-format',
-            title: 'Standard Display Format',
-            commonParams: {},
+            title: 'Minute Value Display Format',
+            commonParams: {
+              deliveryMode: 'PICKUP',
+              marketplace: 'false'
+            },
             rules: [
               {
                 format: 'DISPLAY_FORMAT_MINUTE_VALUE',
-                conditions: {
-                  delivery_mode: 'PICKUP'
-                }
-              },
+                conditions: {}
+              }
+            ]
+          },
+          // Second group with Minute Range format for Delivery
+          {
+            type: 'display-format',
+            title: 'Minute Range Display Format',
+            commonParams: {
+              deliveryMode: 'DELIVERY',
+              marketplace: 'false'
+            },
+            rules: [
               {
                 format: 'DISPLAY_FORMAT_MINUTE_RANGE',
-                conditions: {
-                  delivery_mode: 'DELIVERY'
-                }
+                conditions: {}
               }
             ]
           }

@@ -45,6 +45,13 @@ class PDTConfigBuilder {
     validationResult.issues.overlappingRules.forEach(issue => {
       this.markRulesWithError(issue.groupId, issue.rule1Index, issue.rule2Index, issue.message);
     });
+
+    // Show required fields issues - NEW
+    validationResult.issues.requiredFields.forEach(issue => {
+      this.markGroupWithError(issue.groupId, issue.message);
+    });
+
+
     // Update validation panel
     const issueCount = document.getElementById('issueCount');
     const validationContent = document.getElementById('validationContent');
@@ -100,6 +107,33 @@ class PDTConfigBuilder {
 
         const list = document.createElement('ul');
         validationResult.issues.overlappingRules.forEach(issue => {
+          const item = document.createElement('li');
+          item.textContent = issue.message;
+          item.setAttribute('data-group', issue.groupId);
+
+          // Add click handler to scroll to group
+          item.addEventListener('click', () => {
+            const group = document.querySelector(`[data-group-id="${issue.groupId}"]`);
+            if (group) {
+              group.scrollIntoView({ behavior: 'smooth' });
+            }
+          });
+
+          list.appendChild(item);
+        });
+
+        section.appendChild(list);
+        validationContent.appendChild(section);
+      }
+
+      // Add required fields issues
+      if (validationResult.issues.requiredFields.length > 0) {
+        const section = document.createElement('div');
+        section.className = 'issue-section';
+        section.innerHTML = '<h4>Configuration Issues</h4>';
+
+        const list = document.createElement('ul');
+        validationResult.issues.requiredFields.forEach(issue => {
           const item = document.createElement('li');
           item.textContent = issue.message;
           item.setAttribute('data-group', issue.groupId);
@@ -528,8 +562,17 @@ class PDTConfigBuilder {
     inputElement.id = `${group.id}-${param.name}`;
     inputElement.name = param.name;
 
-    // Set value from group data or default
-    const value = group.commonParams[param.name] || param.default || '';
+    // FIXED VERSION: Prioritize the value from group.commonParams regardless if it's empty
+    // Only fall back to default if the value is completely undefined/null
+    let value;
+    if (group.commonParams[param.name] !== undefined && group.commonParams[param.name] !== null) {
+      // Use the value from group, even if it's an empty string
+      value = group.commonParams[param.name];
+    } else {
+      // Fall back to default only when needed
+      value = param.default || '';
+    }
+
     if (param.type === 'checkbox') {
       inputElement.checked = value;
     } else {
@@ -559,19 +602,22 @@ class PDTConfigBuilder {
             label: 'Delivery Mode',
             type: 'select',
             options: [
+              { value: '', label: 'Any' },
               { value: 'DELIVERY', label: 'Delivery' },
               { value: 'PICKUP', label: 'Pickup' }
             ]
+            // Removed default
           },
           {
             name: 'marketplace',
             label: 'Marketplace',
             type: 'select',
             options: [
+              { value: '', label: 'Any' },
               { value: 'true', label: 'True' },
               { value: 'false', label: 'False' }
-            ],
-            default: 'false'
+            ]
+            // Removed default
           },
           {
             name: 'pdtLessThanOrEqualTo',
@@ -583,9 +629,9 @@ class PDTConfigBuilder {
             label: 'Vertical Type',
             type: 'select',
             options: [
+              { value: '', label: 'Any' },
               { value: 'restaurants', label: 'Restaurants' },
-              { value: 'darkstores', label: 'Darkstores' },
-              { value: '', label: 'Other' }
+              { value: 'darkstores', label: 'Darkstores' }
             ]
           }
         ];
@@ -596,40 +642,43 @@ class PDTConfigBuilder {
             label: 'Delivery Option',
             type: 'select',
             options: [
+              { value: '', label: 'Any' },
               { value: 'STANDARD', label: 'Standard' },
               { value: 'PRIORITY', label: 'Priority' },
               { value: 'SAVER', label: 'Saver' }
-            ],
-            default: 'STANDARD'
+            ]
+            // Removed default
           },
           {
             name: 'deliveryMode',
             label: 'Delivery Mode',
             type: 'select',
             options: [
+              { value: '', label: 'Any' },
               { value: 'DELIVERY', label: 'Delivery' },
               { value: 'PICKUP', label: 'Pickup' }
-            ],
-            default: 'DELIVERY'
+            ]
+            // Removed default
           },
           {
             name: 'marketplace',
             label: 'Marketplace',
             type: 'select',
             options: [
+              { value: '', label: 'Any' },
               { value: 'true', label: 'True' },
               { value: 'false', label: 'False' }
-            ],
-            default: 'false'
+            ]
+            // Removed default
           },
           {
             name: 'verticalType',
             label: 'Vertical Type',
             type: 'select',
             options: [
+              { value: '', label: 'Any' },
               { value: 'restaurants', label: 'Restaurants' },
-              { value: 'darkstores', label: 'Darkstores' },
-              { value: '', label: 'Other' }
+              { value: 'darkstores', label: 'Darkstores' }
             ]
           }
         ];
@@ -640,31 +689,34 @@ class PDTConfigBuilder {
             label: 'Delivery Option',
             type: 'select',
             options: [
+              { value: '', label: 'Any' },
               { value: 'STANDARD', label: 'Standard' },
               { value: 'PRIORITY', label: 'Priority' },
               { value: 'SAVER', label: 'Saver' }
-            ],
-            default: 'STANDARD'
+            ]
+            // Removed default
           },
           {
             name: 'deliveryMode',
             label: 'Delivery Mode',
             type: 'select',
             options: [
+              { value: '', label: 'Any' },
               { value: 'DELIVERY', label: 'Delivery' },
               { value: 'PICKUP', label: 'Pickup' }
-            ],
-            default: 'DELIVERY'
+            ]
+            // Removed default
           },
           {
             name: 'marketplace',
             label: 'Marketplace',
             type: 'select',
             options: [
+              { value: '', label: 'Any' },
               { value: 'true', label: 'True' },
               { value: 'false', label: 'False' }
-            ],
-            default: 'false'
+            ]
+            // Removed default
           },
           {
             name: 'pdtGreaterThan',
@@ -691,9 +743,9 @@ class PDTConfigBuilder {
             label: 'Vertical Type',
             type: 'select',
             options: [
+              { value: '', label: 'Any' },
               { value: 'restaurants', label: 'Restaurants' },
-              { value: 'darkstores', label: 'Darkstores' },
-              { value: '', label: 'Other' }
+              { value: 'darkstores', label: 'Darkstores' }
             ]
           }
         ];
@@ -704,10 +756,7 @@ class PDTConfigBuilder {
             label: 'Rounding Strategy',
             type: 'select',
             options: [
-              { value: 'NEAREST_5', label: 'Nearest 5 minutes' },
-              { value: 'NEAREST_10', label: 'Nearest 10 minutes' },
-              { value: 'UP_5', label: 'Up to 5 minutes' },
-              { value: 'UP_10', label: 'Up to 10 minutes' }
+              { value: 'FLOOR_5', label: 'Floor to 5 minutes' },
             ]
           }
         ];
@@ -778,20 +827,57 @@ class PDTConfigBuilder {
   }
 
   addRule(groupId) {
-    this.configManager.addRule(groupId);
+    const group = this.configManager.getGroup(groupId);
+    if (!group) return false;
+
+    // For display-format, only allow one rule per group
+    if (group.type === 'display-format') {
+      // If the group already has a rule, don't allow adding another
+      if (group.rules && group.rules.length > 0) {
+        alert("Display Format groups can only have one format rule. Please create a new group for additional formats.");
+        return false;
+      }
+
+      // Add a default display format rule
+      this.configManager.addRule(groupId, 'DISPLAY_FORMAT_MINUTE_RANGE');
+    } else {
+      // For other section types, just add a rule normally
+      this.configManager.addRule(groupId);
+    }
 
     // Re-render just this group
     const groupElement = document.querySelector(`[data-group-id="${groupId}"]`);
     if (groupElement) {
       const group = this.configManager.getGroup(groupId);
       this.renderRulesTable(groupElement, group);
+
+      // If this is a ranges group, re-apply the color coding
+      if (group.type === 'ranges') {
+        const tableContainer = groupElement.querySelector('.rules-table');
+        if (tableContainer && this.gridManager) {
+          this.gridManager.applyColorCodingToRangesTable(tableContainer);
+        }
+      }
     }
 
     this.updateYamlPreview();
 
     // Validate after adding a rule
     this.validateConfiguration();
+
+    return true;
   }
+
+
+  // Helper method to get format options
+  getFormatOptions() {
+    return [
+      { value: 'DISPLAY_FORMAT_MINUTE_VALUE', label: 'Minute Value' },
+      { value: 'DISPLAY_FORMAT_MINUTE_RANGE', label: 'Minute Range' },
+      { value: 'DISPLAY_FORMAT_ETA_RANGE', label: 'ETA Range' }
+    ];
+  }
+
 
   updateRule(groupId, ruleIndex, field, value) {
     this.configManager.updateRule(groupId, ruleIndex, field, value);

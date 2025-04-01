@@ -20,105 +20,37 @@ export class YamlHandler {
       // Clone the config to avoid modifying the original
       const configClone = JSON.parse(JSON.stringify(config));
 
-      // Convert boolean values properly for YAML (they get automatically handled by jsyaml)
+      // Make sure snake_case versions of metadata fields exist
+      if (configClone.configFormatVersion !== undefined) {
+        configClone.config_format_version = configClone.configFormatVersion;
+        delete configClone.configFormatVersion; // Remove to avoid duplication
+      }
+
+      if (configClone.countryCode !== undefined) {
+        configClone.country_code = configClone.countryCode;
+        delete configClone.countryCode; // Remove to avoid duplication
+      }
+
+      // Convert boolean values properly for YAML
       this.processConfigForYaml(configClone);
 
-      // Generate YAML using jsyaml
-      const yaml = window.jsyaml.dump(configClone, {
-        indent: 2,
-        lineWidth: -1, // Don't wrap long lines
-        noRefs: true
-      });
-
-      // Add comment headers for sections
-      return this.addCommentsToYaml(yaml, configClone);
+      // Instead of using jsyaml to generate YAML, directly use our custom formatter
+      // This ensures our comments are always added correctly
+      return this.formatConfigWithComments(configClone);
     } catch (e) {
       console.error('Failed to generate YAML:', e);
       return 'Error generating YAML: ' + e.message;
     }
   }
 
-  /**
-   * Process config object for YAML conversion
-   */
-  processConfigForYaml(config) {
-    // Process PDT sections
-    if (config.pdt && Array.isArray(config.pdt)) {
-      config.pdt.forEach(section => {
-        // Handle ranges section
-        if (section.ranges && Array.isArray(section.ranges)) {
-          section.ranges.forEach(range => {
-            // Process conditions
-            if (range.conditions) {
-              // Convert string boolean to actual boolean
-              if (range.conditions.marketplace !== undefined) {
-                if (typeof range.conditions.marketplace === 'string') {
-                  range.conditions.marketplace =
-                    range.conditions.marketplace === 'true';
-                }
-              }
-            }
-          });
-        }
-
-        // Handle display-format section
-        if (section.display_format && Array.isArray(section.display_format)) {
-          section.display_format.forEach(format => {
-            // Process conditions
-            if (format.conditions) {
-              // Convert string boolean to actual boolean
-              if (format.conditions.marketplace !== undefined) {
-                if (typeof format.conditions.marketplace === 'string') {
-                  format.conditions.marketplace =
-                    format.conditions.marketplace === 'true';
-                }
-              }
-            }
-          });
-        }
-
-        // Handle capping section (similar processing would be needed)
-        if (section.capping && Array.isArray(section.capping)) {
-          section.capping.forEach(entry => {
-            // Ensure proper structure for ranges
-            if (entry.ranges) {
-              // Ensure min has both lower_bound and upper_bound
-              if (entry.ranges.min) {
-                if (typeof entry.ranges.min.lower_bound !== 'number') {
-                  entry.ranges.min.lower_bound = entry.ranges.min.lower_bound || 0;
-                }
-                if (typeof entry.ranges.min.upper_bound !== 'number') {
-                  entry.ranges.min.upper_bound = entry.ranges.min.upper_bound || 0;
-                }
-              }
-
-              // Ensure max has both lower_bound and upper_bound
-              if (entry.ranges.max) {
-                if (typeof entry.ranges.max.lower_bound !== 'number') {
-                  entry.ranges.max.lower_bound = entry.ranges.max.lower_bound || 0;
-                }
-                if (typeof entry.ranges.max.upper_bound !== 'number') {
-                  entry.ranges.max.upper_bound = entry.ranges.max.upper_bound || 0;
-                }
-              }
-            }
-          });
-        }
-      });
-    }
-  }
-
-  /**
-   * Add comments to the generated YAML for better readability
-   */
-  addCommentsToYaml(yaml, config) {
+  formatConfigWithComments(config) {
     const lines = [];
 
     // Add config header
-    lines.push('config_format_version: ' + config.configFormatVersion);
-    lines.push('variant: ' + config.variant);
-    lines.push('platform: ' + config.platform);
-    lines.push('country_code: ' + config.countryCode);
+    lines.push(`config_format_version: ${config.config_format_version || '1'}`);
+    lines.push(`variant: ${config.variant || ''}`);
+    lines.push(`platform: ${config.platform || ''}`);
+    lines.push(`country_code: ${config.country_code || ''}`);
     lines.push('');
     lines.push('pdt:');
 
@@ -158,24 +90,24 @@ export class YamlHandler {
           });
         }
         else if (section.ranges) {
-          // For ranges, use the categorized approach but include titles
-          const categorizedRanges = {};
+          // Group ranges by their conditions for better organization
+          const groupedRanges = {};
 
-          section.ranges.forEach(entry => {
-            // Use title as category if available
-            const category = entry._title || this.determineRangeCategory(entry);
+          section.ranges.forEach(range => {
+            // Always use generateRangeDescription to ensure consistency
+            const description = range._title || this.generateRangeDescription(range);
 
-            if (!categorizedRanges[category]) {
-              categorizedRanges[category] = [];
+            if (!groupedRanges[description]) {
+              groupedRanges[description] = [];
             }
 
-            categorizedRanges[category].push(entry);
+            groupedRanges[description].push(range);
           });
 
-          // Add each category
-          Object.entries(categorizedRanges).forEach(([category, ranges]) => {
+          // Add each group with its descriptive comment
+          Object.entries(groupedRanges).forEach(([description, ranges]) => {
             lines.push('');
-            lines.push(`  # ${category}`);
+            lines.push(`  # ${description}`);
             lines.push('  - ranges:');
 
             ranges.forEach(range => {
@@ -270,170 +202,133 @@ export class YamlHandler {
     return lines.join('\n');
   }
 
-  determineRangeCategory(range) {
-    let category = 'Other Ranges';
-
-    // Try to determine vertical type
-    if (range.conditions && range.conditions.vertical_types) {
-      const verticalType = range.conditions.vertical_types[0];
-      if (verticalType === 'restaurants') {
-        category = 'Restaurant Ranges';
-      } else if (verticalType === 'darkstores') {
-        category = 'Darkstore Ranges';
-      }
-    }
-
-    // Add PDT range info if available
-    if (range.conditions) {
-      const pdtFrom = range.conditions.pdt_greater_than;
-      const pdtTo = range.conditions.pdt_less_than_or_equal_to;
-
-      if (pdtFrom !== undefined || pdtTo !== undefined) {
-        let pdtRange = '';
-
-        if (pdtFrom !== undefined && pdtTo !== undefined) {
-          pdtRange = ` (PDT ${pdtFrom}-${pdtTo})`;
-        } else if (pdtFrom !== undefined) {
-          pdtRange = ` (PDT >${pdtFrom})`;
-        } else if (pdtTo !== undefined) {
-          pdtRange = ` (PDT ≤${pdtTo})`;
-        }
-
-        category += pdtRange;
-      }
-    }
-
-    return category;
-  }
-
-
   /**
-   * Add a YAML section with appropriate indentation
+   * Process config object for YAML conversion
    */
-  addYamlSection(result, sectionName, entries) {
-    result.push(`  - ${sectionName}:`);
+  processConfigForYaml(config) {
 
-    // Special handling for capping section
-    if (sectionName === 'capping') {
-      entries.forEach((entry, index) => {
-        result.push(`    - delivery_option: ${entry.delivery_option}`);
+    // Ensure the snake_case versions of metadata fields are set
+    if (config.configFormatVersion !== undefined) {
+      config.config_format_version = config.configFormatVersion;
+      delete config.configFormatVersion; // Remove camelCase version to avoid duplication
+    }
 
-        if (entry.conditions) {
-          result.push('      conditions:');
-          Object.entries(entry.conditions).forEach(([key, value]) => {
-            result.push(`        ${key}: ${value}`);
+    if (config.countryCode !== undefined) {
+      config.country_code = config.countryCode;
+      delete config.countryCode; // Remove camelCase version to avoid duplication
+    }
+
+
+    // Process PDT sections
+    if (config.pdt && Array.isArray(config.pdt)) {
+      config.pdt.forEach(section => {
+        // Handle ranges section
+        if (section.ranges && Array.isArray(section.ranges)) {
+          section.ranges.forEach(range => {
+            // Process conditions
+            if (range.conditions) {
+              // Convert string boolean to actual boolean
+              if (range.conditions.marketplace !== undefined) {
+                if (typeof range.conditions.marketplace === 'string') {
+                  range.conditions.marketplace =
+                    range.conditions.marketplace === 'true';
+                }
+              }
+            }
           });
         }
 
-        if (entry.single) {
-          result.push('      single:');
-          result.push(`        min: ${entry.single.min}`);
-          result.push(`        max: ${entry.single.max}`);
+        // Handle display-format section
+        if (section.display_format && Array.isArray(section.display_format)) {
+          section.display_format.forEach(format => {
+            // Process conditions
+            if (format.conditions) {
+              // Convert string boolean to actual boolean
+              if (format.conditions.marketplace !== undefined) {
+                if (typeof format.conditions.marketplace === 'string') {
+                  format.conditions.marketplace =
+                    format.conditions.marketplace === 'true';
+                }
+              }
+            }
+          });
         }
 
-        if (entry.ranges) {
-          result.push('      ranges:');
-          result.push('        min:');
-          result.push(`          lower_bound: ${entry.ranges.min.lower_bound}`);
-          result.push(`          upper_bound: ${entry.ranges.min.upper_bound}`);
-          result.push('        max:');
-          result.push(`          lower_bound: ${entry.ranges.max.lower_bound}`);
-          result.push(`          upper_bound: ${entry.ranges.max.upper_bound}`);
-        }
+        // Handle capping section (similar processing would be needed)
+        if (section.capping && Array.isArray(section.capping)) {
+          section.capping.forEach(entry => {
+            // Ensure proper structure for ranges
+            if (entry.ranges) {
+              // Ensure min has both lower_bound and upper_bound
+              if (entry.ranges.min) {
+                if (typeof entry.ranges.min.lower_bound !== 'number') {
+                  entry.ranges.min.lower_bound = entry.ranges.min.lower_bound || 0;
+                }
+                if (typeof entry.ranges.min.upper_bound !== 'number') {
+                  entry.ranges.min.upper_bound = entry.ranges.min.upper_bound || 0;
+                }
+              }
 
-        if (index < entries.length - 1) {
-          result.push('');
+              // Ensure max has both lower_bound and upper_bound
+              if (entry.ranges.max) {
+                if (typeof entry.ranges.max.lower_bound !== 'number') {
+                  entry.ranges.max.lower_bound = entry.ranges.max.lower_bound || 0;
+                }
+                if (typeof entry.ranges.max.upper_bound !== 'number') {
+                  entry.ranges.max.upper_bound = entry.ranges.max.upper_bound || 0;
+                }
+              }
+            }
+          });
         }
       });
-      return;
     }
-
-    // Default handling for other sections
-    const entriesYaml = window.jsyaml.dump(entries, {
-      indent: 2,
-      lineWidth: -1,
-      noRefs: true
-    });
-
-    // Add proper indentation and handle edge cases
-    const entryLines = entriesYaml.split('\n');
-    entryLines.forEach(line => {
-      if (line.trim()) {
-        result.push('    ' + line);
-      }
-    });
   }
 
-  /**
-   * Categorize ranges for better organization in YAML
-   */
-  categorizeRanges(ranges) {
-    const categories = {};
+  generateRangeDescription(range) {
+    let description = '';
 
-    ranges.forEach(range => {
-      let category = 'Other Ranges';
+    if (range.conditions) {
+      // PDT range description
+      const pdtGreaterThan = range.conditions.pdt_greater_than;
+      const pdtLessThanOrEqualTo = range.conditions.pdt_less_than_or_equal_to;
 
-      // Try to determine vertical type
-      if (range.conditions && range.conditions.vertical_types) {
-        const verticalType = range.conditions.vertical_types[0];
-        if (verticalType === 'restaurants') {
-          category = 'Restaurant Ranges';
-        } else if (verticalType === 'darkstores') {
-          category = 'Darkstore Ranges';
+      if (pdtGreaterThan !== undefined || pdtLessThanOrEqualTo !== undefined) {
+        description += 'PDT ';
+
+        if (pdtGreaterThan !== undefined && pdtLessThanOrEqualTo !== undefined) {
+          description += `${pdtGreaterThan}-${pdtLessThanOrEqualTo}`;
+        } else if (pdtGreaterThan !== undefined) {
+          description += `>${pdtGreaterThan}`;
+        } else if (pdtLessThanOrEqualTo !== undefined) {
+          description += `≤${pdtLessThanOrEqualTo}`;
         }
       }
 
-      // Add PDT range info if available
-      if (range.conditions) {
-        const pdtFrom = range.conditions.pdt_greater_than;
-        const pdtTo = range.conditions.pdt_less_than_or_equal_to;
+      // Mean Delay range description
+      const mdGreaterThan = range.conditions.mean_delay_greater_than;
+      const mdLessThanOrEqualTo = range.conditions.mean_delay_less_than_or_equal_to;
 
-        if (pdtFrom !== undefined || pdtTo !== undefined) {
-          let pdtRange = '';
+      if (mdGreaterThan !== undefined || mdLessThanOrEqualTo !== undefined) {
+        if (description) {
+          description += ', Mean Delay ';
+        } else {
+          description += 'Mean Delay ';
+        }
 
-          if (pdtFrom !== undefined && pdtTo !== undefined) {
-            pdtRange = ` (PDT ${pdtFrom}-${pdtTo})`;
-          } else if (pdtFrom !== undefined) {
-            pdtRange = ` (PDT >${pdtFrom})`;
-          } else if (pdtTo !== undefined) {
-            pdtRange = ` (PDT ≤${pdtTo})`;
-          }
-
-          category += pdtRange;
+        if (mdGreaterThan !== undefined && mdLessThanOrEqualTo !== undefined) {
+          description += `${mdGreaterThan}-${mdLessThanOrEqualTo}`;
+        } else if (mdGreaterThan !== undefined) {
+          description += `>${mdGreaterThan}`;
+        } else if (mdLessThanOrEqualTo !== undefined) {
+          description += `≤${mdLessThanOrEqualTo}`;
         }
       }
-
-      // Initialize category if not exists
-      if (!categories[category]) {
-        categories[category] = [];
-      }
-
-      categories[category].push(range);
-    });
-
-    return categories;
-  }
-
-  /**
-   * Parse YAML to a config object
-   */
-  parseYaml(yaml) {
-    if (!window.jsyaml) {
-      console.error('js-yaml library not loaded. Cannot parse YAML.');
-      return null;
     }
 
-    try {
-      return window.jsyaml.load(yaml);
-    } catch (e) {
-      console.error('Failed to parse YAML:', e);
-      return null;
-    }
+    return description || 'Default';
   }
 
-  /**
-   * Format a YAML string with proper indentation
-   */
   formatYaml(yaml) {
     if (!window.jsyaml) {
       return yaml; // Can't format without js-yaml
@@ -442,6 +337,20 @@ export class YamlHandler {
     try {
       // Parse the YAML to an object
       const obj = window.jsyaml.load(yaml);
+
+      // Make sure snake_case versions of metadata fields are properly handled
+      // Check if the camelCase versions exist and use them to set the snake_case versions
+      if (obj.configFormatVersion !== undefined && obj.config_format_version === undefined) {
+        obj.config_format_version = obj.configFormatVersion;
+      }
+
+      if (obj.countryCode !== undefined && obj.country_code === undefined) {
+        obj.country_code = obj.countryCode;
+      }
+
+      // Clean up the camelCase versions to avoid duplication
+      delete obj.configFormatVersion;
+      delete obj.countryCode;
 
       // Then re-generate with proper formatting
       return this.generateYaml(obj);

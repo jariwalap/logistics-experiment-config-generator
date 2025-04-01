@@ -51,98 +51,203 @@ export class ConfigManager {
       const sectionType = this.getSectionType(section);
 
       if (sectionType === 'display-format' && section.display_format) {
-        section.display_format.forEach((entry, index) => {
-          const id = `display-format-${this.idCounter++}`;
-          // Use stored title or generate a default one
-          const title = entry._title || `Display Format ${index + 1}`;
+        // Group display format entries by common parameters
+        const formatGroups = this.groupByCommonParams(section.display_format, [
+          'delivery_mode',
+          'marketplace',
+          'pdt_less_than_or_equal_to',
+          'vertical_types'
+        ]);
 
+        // Process each common param group
+        Object.entries(formatGroups).forEach(([commonParamsKey, entries]) => {
+          const id = `display-format-${this.idCounter++}`;
+          const firstEntry = entries[0];
+
+          // Check if this group has no conditions
+          const hasNoConditions = commonParamsKey === 'conditions:none';
+          const hasOnlyDeliveryOption = commonParamsKey.includes('conditions:delivery_option_only');
+
+          // Create a descriptive title
+          let title;
+          if (hasNoConditions || hasOnlyDeliveryOption) {
+            title = `Display Format (Any)`;
+          } else {
+            title = `Display Format`;
+            if (firstEntry.conditions?.delivery_mode) {
+              title += ` ${firstEntry.conditions.delivery_mode}`;
+            }
+          }
+
+          // Override with stored title if available
+          if (firstEntry._title) {
+            title = firstEntry._title;
+          }
+
+          // Create the group
           this.groups[id] = {
             id,
             type: 'display-format',
             title: title,
             commonParams: {
-              deliveryMode: entry.conditions?.delivery_mode || '',
-              marketplace: entry.conditions?.marketplace?.toString() || 'false',
-              pdtLessThanOrEqualTo: entry.conditions?.pdt_less_than_or_equal_to || '',
-              verticalType: entry.conditions?.vertical_types?.[0] || ''
+              deliveryMode: (hasNoConditions || hasOnlyDeliveryOption) ? '' : (firstEntry.conditions?.delivery_mode || ''),
+              marketplace: (hasNoConditions || hasOnlyDeliveryOption) ? '' : (firstEntry.conditions?.marketplace?.toString() || 'false'),
+              pdtLessThanOrEqualTo: (hasNoConditions || hasOnlyDeliveryOption) ? '' : (firstEntry.conditions?.pdt_less_than_or_equal_to || ''),
+              verticalType: (hasNoConditions || hasOnlyDeliveryOption) ? '' : (firstEntry.conditions?.vertical_types?.[0] || '')
             },
-            rules: [{
+            rules: []
+          };
+
+          // Add all formats as rules
+          entries.forEach(entry => {
+            this.groups[id].rules.push({
               format: entry.format,
               conditions: entry.conditions || {}
-            }]
-          };
+            });
+          });
         });
       } else if (sectionType === 'ranges' && section.ranges) {
-        section.ranges.forEach((entry, index) => {
+        // Group range entries by common parameters
+        const rangeGroups = this.groupByCommonParams(section.ranges, [
+          'delivery_option',
+          'delivery_mode',
+          'marketplace',
+          'vertical_types'
+        ]);
+
+        // Process each common param group
+        Object.entries(rangeGroups).forEach(([commonParamsKey, entries]) => {
           const id = `ranges-${this.idCounter++}`;
+          const firstEntry = entries[0];
+
+          // Check if this group has no conditions or only delivery_option
+          const hasNoConditions = commonParamsKey === 'conditions:none';
+          const hasOnlyDeliveryOption = commonParamsKey.includes('conditions:delivery_option_only');
 
           // Determine vertical type
           let verticalType = '';
-          if (entry.conditions?.vertical_types && entry.conditions.vertical_types.length > 0) {
-            verticalType = entry.conditions.vertical_types[0];
+          if (!hasNoConditions && !hasOnlyDeliveryOption &&
+            firstEntry.conditions?.vertical_types &&
+            firstEntry.conditions.vertical_types.length > 0) {
+            verticalType = firstEntry.conditions.vertical_types[0];
           }
 
-          // Use stored title or generate a default one
-          const title = entry._title || this.generateRangeTitle(entry);
+          // Create a descriptive title
+          let title;
+          if (hasNoConditions || hasOnlyDeliveryOption) {
+            title = `Ranges Default`;
+          } else if (firstEntry._title) {
+            title = firstEntry._title;
+          } else {
+            title = 'Ranges';
 
+            // Add PDT condition to title if present
+            if (firstEntry.conditions?.pdt_less_than_or_equal_to !== undefined) {
+              title += ` PDT ≤${firstEntry.conditions.pdt_less_than_or_equal_to}`;
+            } else if (firstEntry.conditions?.pdt_greater_than !== undefined) {
+              title += ` PDT >${firstEntry.conditions.pdt_greater_than}`;
+            }
+          }
+
+          // Create the group
           this.groups[id] = {
             id,
             type: 'ranges',
             title: title,
             commonParams: {
-              deliveryOption: entry.delivery_option || 'STANDARD',
-              deliveryMode: entry.conditions?.delivery_mode || 'DELIVERY',
-              marketplace: entry.conditions?.marketplace?.toString() || 'false',
+              deliveryOption: firstEntry.delivery_option || 'STANDARD',
+              // Set deliveryMode to blank/Any for entries with no conditions or only delivery_option
+              deliveryMode: (hasNoConditions || hasOnlyDeliveryOption) ? '' : (firstEntry.conditions?.delivery_mode || 'DELIVERY'),
+              // Set marketplace to blank/Any for entries with no conditions or only delivery_option
+              marketplace: (hasNoConditions || hasOnlyDeliveryOption) ? '' : (firstEntry.conditions?.marketplace?.toString() || 'false'),
               verticalType: verticalType
             },
-            rules: [{
+            rules: []
+          };
+
+          // Sort the entries by PDT ranges and then by mean delay
+          const sortedEntries = this.sortRangeEntries(entries);
+
+          // Add all rules
+          sortedEntries.forEach(entry => {
+            this.groups[id].rules.push({
               lowerBound: entry.lower_bound,
               upperBound: entry.upper_bound,
               pdtGreaterThan: entry.conditions?.pdt_greater_than || null,
               pdtLessThanOrEqualTo: entry.conditions?.pdt_less_than_or_equal_to || null,
               meanDelayGreaterThan: entry.conditions?.mean_delay_greater_than || null,
               meanDelayLessThanOrEqualTo: entry.conditions?.mean_delay_less_than_or_equal_to || null
-            }]
-          };
+            });
+          });
         });
       } else if (sectionType === 'capping' && section.capping) {
-        section.capping.forEach((entry, index) => {
+        // Group capping entries by common parameters
+        const cappingGroups = this.groupByCommonParams(section.capping, [
+          'delivery_option',
+          'delivery_mode',
+          'marketplace',
+          'vertical_types'
+        ]);
+
+        // Process each common param group
+        Object.entries(cappingGroups).forEach(([commonParamsKey, entries]) => {
           const id = `capping-${this.idCounter++}`;
+          const firstEntry = entries[0];
 
-          // Create single rule or ranges rule
-          const rules = [];
+          // Check if this group has no conditions or only delivery_option
+          const hasNoConditions = commonParamsKey === 'conditions:none';
+          const hasOnlyDeliveryOption = commonParamsKey.includes('conditions:delivery_option_only');
 
-          if (entry.ranges) {
-            rules.push({
-              type: 'ranges',
-              minLowerBound: entry.ranges.min.lower_bound,
-              minUpperBound: entry.ranges.min.upper_bound,
-              maxLowerBound: entry.ranges.max.lower_bound,
-              maxUpperBound: entry.ranges.max.upper_bound
-            });
+          // Create a descriptive title
+          let title;
+          if (hasNoConditions || hasOnlyDeliveryOption) {
+            title = `Capping Default`;
+          } else if (firstEntry._title) {
+            title = firstEntry._title;
+          } else {
+            title = `Capping ${firstEntry.delivery_option || ''}`;
           }
 
-          if (entry.single) {
-            rules.push({
-              type: 'single',
-              min: entry.single.min,
-              max: entry.single.max
-            });
-          }
-
-          // Use stored title or generate a default one
-          const title = entry._title || `Capping ${index + 1}`;
-
+          // Create the group
           this.groups[id] = {
             id,
             type: 'capping',
             title: title,
             commonParams: {
-              deliveryOption: entry.delivery_option || 'STANDARD',
-              deliveryMode: entry.conditions?.delivery_mode || ''
+              deliveryOption: firstEntry.delivery_option || 'STANDARD',
+              deliveryMode: (hasNoConditions || hasOnlyDeliveryOption) ? '' : (firstEntry.conditions?.delivery_mode || ''),
+              marketplace: (hasNoConditions || hasOnlyDeliveryOption) ? '' : (firstEntry.conditions?.marketplace?.toString() || 'false'),
+              pdtGreaterThan: (hasNoConditions || hasOnlyDeliveryOption) ? '' : (firstEntry.conditions?.pdt_greater_than || ''),
+              pdtLessThanOrEqualTo: (hasNoConditions || hasOnlyDeliveryOption) ? '' : (firstEntry.conditions?.pdt_less_than_or_equal_to || ''),
+              meanDelayGreaterThan: (hasNoConditions || hasOnlyDeliveryOption) ? '' : (firstEntry.conditions?.mean_delay_greater_than || ''),
+              meanDelayLessThanOrEqualTo: (hasNoConditions || hasOnlyDeliveryOption) ? '' : (firstEntry.conditions?.mean_delay_less_than_or_equal_to || ''),
+              verticalType: (hasNoConditions || hasOnlyDeliveryOption) ? '' : (firstEntry.conditions?.vertical_types?.[0] || '')
             },
-            rules
+            rules: []
           };
+
+          // Process each entry's rules
+          entries.forEach(entry => {
+            // Add single capping rule if present
+            if (entry.single) {
+              this.groups[id].rules.push({
+                type: 'single',
+                min: entry.single.min,
+                max: entry.single.max
+              });
+            }
+
+            // Add ranges capping rule if present
+            if (entry.ranges) {
+              this.groups[id].rules.push({
+                type: 'ranges',
+                minLowerBound: entry.ranges.min.lower_bound,
+                minUpperBound: entry.ranges.min.upper_bound,
+                maxLowerBound: entry.ranges.max.lower_bound,
+                maxUpperBound: entry.ranges.max.upper_bound
+              });
+            }
+          });
         });
       } else if (sectionType === 'rounding' && section.rounding) {
         section.rounding.forEach((entry, index) => {
@@ -166,6 +271,55 @@ export class ConfigManager {
   }
 
   /**
+   * Sort range entries by PDT ranges and then by mean delay
+   */
+  sortRangeEntries(entries) {
+    return entries.sort((a, b) => {
+      // First sort by PDT bounds
+      const aPdtLower = a.conditions?.pdt_greater_than !== undefined ? a.conditions.pdt_greater_than : -Infinity;
+      const aPdtUpper = a.conditions?.pdt_less_than_or_equal_to !== undefined ? a.conditions.pdt_less_than_or_equal_to : Infinity;
+      const bPdtLower = b.conditions?.pdt_greater_than !== undefined ? b.conditions.pdt_greater_than : -Infinity;
+      const bPdtUpper = b.conditions?.pdt_less_than_or_equal_to !== undefined ? b.conditions.pdt_less_than_or_equal_to : Infinity;
+
+      // Compare lower bounds first
+      if (aPdtLower !== bPdtLower) {
+        return aPdtLower - bPdtLower;
+      }
+
+      // If lower bounds are equal, compare upper bounds
+      if (aPdtUpper !== bPdtUpper) {
+        return aPdtUpper - bPdtUpper;
+      }
+
+      // If PDT bounds are equal, sort by mean delay
+      const aMdLower = a.conditions?.mean_delay_greater_than !== undefined ? a.conditions.mean_delay_greater_than : -Infinity;
+      const aMdUpper = a.conditions?.mean_delay_less_than_or_equal_to !== undefined ? a.conditions.mean_delay_less_than_or_equal_to : Infinity;
+      const bMdLower = b.conditions?.mean_delay_greater_than !== undefined ? b.conditions.mean_delay_greater_than : -Infinity;
+      const bMdUpper = b.conditions?.mean_delay_less_than_or_equal_to !== undefined ? b.conditions.mean_delay_less_than_or_equal_to : Infinity;
+
+      // Compare lower bounds first
+      if (aMdLower !== bMdLower) {
+        return aMdLower - bMdLower;
+      }
+
+      // If lower bounds are equal, compare upper bounds
+      if (aMdUpper !== bMdUpper) {
+        return aMdUpper - bMdUpper;
+      }
+
+      // If all bounds are equal, sort by lower_bound and upper_bound
+      if (a.lower_bound !== b.lower_bound) {
+        return a.lower_bound - b.lower_bound;
+      }
+
+      return a.upper_bound - b.upper_bound;
+    });
+  }
+
+
+
+
+  /**
    * Determine the section type from a section object
    */
   getSectionType(section) {
@@ -176,21 +330,80 @@ export class ConfigManager {
     return 'unknown';
   }
 
-  /**
-   * Generate a descriptive title for a range entry
-   */
-  generateRangeTitle(entry) {
-    const pdtPart = entry.conditions?.pdt_greater_than || entry.conditions?.pdt_less_than_or_equal_to
-      ? `PDT ${entry.conditions.pdt_greater_than || ''}-${entry.conditions.pdt_less_than_or_equal_to || ''}`
-      : 'PDT Range';
+  groupByCommonParams(entries, paramKeys) {
+    const groups = {};
+    const debugEntries = {}; // For logging
 
-    let verticalPart = '';
-    if (entry.conditions?.vertical_types && entry.conditions.vertical_types.length > 0) {
-      verticalPart = entry.conditions.vertical_types[0].charAt(0).toUpperCase() +
-        entry.conditions.vertical_types[0].slice(1);
-    }
+    entries.forEach((entry, index) => {
+      // Generate a key based on common parameters
+      const keyParts = [];
 
-    return verticalPart ? `${verticalPart} ${pdtPart}` : pdtPart;
+      // Handle three cases:
+      // 1. No conditions at all
+      // 2. Only delivery_option without conditions
+      // 3. Full conditions specified
+
+      const hasAnyConditions = entry.conditions && Object.keys(entry.conditions).length > 0;
+      const hasOnlyDeliveryOption = !hasAnyConditions && entry.delivery_option && !entry.conditions;
+
+      if (!hasAnyConditions && !hasOnlyDeliveryOption) {
+        // Case 1: No conditions at all
+        keyParts.push('conditions:none');
+      } else if (hasOnlyDeliveryOption) {
+        // Case 2: Only delivery_option without conditions
+        keyParts.push(`delivery_option:${String(entry.delivery_option).toUpperCase()}`);
+        keyParts.push('conditions:delivery_option_only');
+      } else {
+        // Case 3: Full conditions
+        // Add delivery_option if present
+        if (entry.delivery_option) {
+          keyParts.push(`delivery_option:${String(entry.delivery_option).toUpperCase()}`);
+        }
+
+        // Add common parameters from conditions
+        paramKeys.forEach(key => {
+          if (key === 'delivery_mode' && entry.conditions.delivery_mode) {
+            keyParts.push(`delivery_mode:${String(entry.conditions.delivery_mode).toUpperCase()}`);
+          } else if (key === 'marketplace' && entry.conditions.marketplace !== undefined) {
+            // Convert boolean or string to standard format (true/false)
+            const marketplaceValue = entry.conditions.marketplace === true ||
+            entry.conditions.marketplace === 'true' ? 'true' : 'false';
+            keyParts.push(`marketplace:${marketplaceValue}`);
+          } else if (key === 'vertical_types') {
+            // If vertical_types exists but is empty, use a standard placeholder
+            const verticalValue = entry.conditions.vertical_types && entry.conditions.vertical_types.length > 0 ?
+              entry.conditions.vertical_types.join(',') : 'ANY';
+            keyParts.push(`vertical_types:${verticalValue}`);
+          } else if (key === 'pdt_less_than_or_equal_to' && entry.conditions.pdt_less_than_or_equal_to !== undefined) {
+            keyParts.push(`pdt_less_than_or_equal_to:${entry.conditions.pdt_less_than_or_equal_to}`);
+          }
+        });
+      }
+
+      const key = keyParts.join('|') || 'default';
+      console.log(`Entry ${index}: Generated key "${key}" from:`, JSON.stringify(entry));
+
+      // Store entry for debugging
+      if (!debugEntries[key]) {
+        debugEntries[key] = [];
+      }
+      debugEntries[key].push(entry);
+
+      // Add entry to the appropriate group
+      if (!groups[key]) {
+        groups[key] = [];
+      }
+
+      groups[key].push(entry);
+    });
+
+    // Log all unique keys and their entry counts
+    console.log('Grouping results:');
+    Object.entries(groups).forEach(([key, entries]) => {
+      console.log(`Key "${key}": ${entries.length} entries`);
+    });
+
+    return groups;
   }
 
   /**
@@ -263,7 +476,7 @@ export class ConfigManager {
             hasConditions = true;
           }
 
-          if (group.commonParams.marketplace !== undefined) {
+          if (group.commonParams.marketplace !== undefined && group.commonParams.marketplace !== '') {
             conditions.marketplace = group.commonParams.marketplace === 'true';
             hasConditions = true;
           }
@@ -273,7 +486,7 @@ export class ConfigManager {
             hasConditions = true;
           }
 
-          if (group.commonParams.verticalType) {
+          if (group.commonParams.verticalType && group.commonParams.verticalType !== '') {
             conditions.vertical_types = [group.commonParams.verticalType];
             hasConditions = true;
           }
@@ -331,12 +544,12 @@ export class ConfigManager {
             entry.conditions.delivery_mode = group.commonParams.deliveryMode;
           }
 
-          if (group.commonParams.marketplace !== undefined) {
+          if (group.commonParams.marketplace !== undefined && group.commonParams.marketplace !== '') {
             entry.conditions.marketplace = group.commonParams.marketplace === 'true';
           }
 
           // Vertical types
-          if (group.commonParams.verticalType) {
+          if (group.commonParams.verticalType && group.commonParams.verticalType !== '') {
             entry.conditions.vertical_types = [group.commonParams.verticalType];
           }
 
@@ -369,7 +582,7 @@ export class ConfigManager {
           hasConditions = true;
         }
 
-        if (group.commonParams.marketplace !== undefined) {
+        if (group.commonParams.marketplace !== undefined && group.commonParams.marketplace !== '') {
           conditions.marketplace = group.commonParams.marketplace === 'true';
           hasConditions = true;
         }
@@ -394,7 +607,7 @@ export class ConfigManager {
           hasConditions = true;
         }
 
-        if (group.commonParams.verticalType) {
+        if (group.commonParams.verticalType && group.commonParams.verticalType !== '') {
           conditions.vertical_types = [group.commonParams.verticalType];
           hasConditions = true;
         }
@@ -647,15 +860,16 @@ export class ConfigManager {
   /**
    * Add a new rule to a group
    */
-  addRule(groupId) {
+  addRule(groupId, format = null) {
     const group = this.groups[groupId];
     if (!group) return false;
 
     // Create a default rule based on the section type
     switch (group.type) {
       case 'display-format':
+        const ruleFormat = format || 'DISPLAY_FORMAT_MINUTE_RANGE';
         group.rules.push({
-          format: 'DISPLAY_FORMAT_MINUTE_RANGE',
+          format: ruleFormat,
           conditions: {}
         });
         break;
@@ -756,6 +970,39 @@ export class ConfigManager {
 
   updateGroupTitle(groupId, newTitle) {
     if (this.groups[groupId]) {
+      // If this is a ranges group, check if we're using the default title
+      if (this.groups[groupId].type === 'ranges' && !newTitle.startsWith('Copy of')) {
+        // Get all rules to determine if we cover all positive PDT values
+        const rules = this.groups[groupId].rules || [];
+
+        // Check if the rules cover all PDT values
+        let coversAllPositive = false;
+
+        // Look for a rule with no lower bound or lower bound ≤ 0
+        const hasZeroLowerBound = rules.some(rule =>
+          (rule.pdtGreaterThan === null || rule.pdtGreaterThan === undefined || rule.pdtGreaterThan <= 0) &&
+          rule.pdtLessThanOrEqualTo !== null && rule.pdtLessThanOrEqualTo !== undefined
+        );
+
+        // Check if all positive PDT values are covered
+        if (hasZeroLowerBound) {
+          // Get the highest upper bound
+          const highestUpperBound = Math.max(...rules
+            .filter(r => r.pdtLessThanOrEqualTo !== null && r.pdtLessThanOrEqualTo !== undefined)
+            .map(r => r.pdtLessThanOrEqualTo));
+
+          // If highest bound is very large (e.g., 999), consider it as "all positive PDT"
+          if (highestUpperBound >= 100) {
+            coversAllPositive = true;
+          }
+        }
+
+        // Set a more descriptive title
+        if (coversAllPositive) {
+          newTitle = 'Ranges (All Positive PDT)';
+        }
+      }
+
       this.groups[groupId].title = newTitle;
 
       // Update config
@@ -769,6 +1016,7 @@ export class ConfigManager {
 
     return false;
   }
+
 
   resetConfig() {
     // Reset to default empty configuration
